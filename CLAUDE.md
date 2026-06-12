@@ -55,10 +55,20 @@ All scheduling lives in `src/app/api/cron/`. No external job queues, no paid ser
 ## Key Files
 
 - `PLAN.md` — phased implementation plan, source of truth for what to build next
+- `README.md` — user-facing setup guide, feature list, deploy instructions
 - `src/db/schema.ts` — Drizzle schema, all tables
 - `src/lib/serp.ts` — SerpAPI client wrapper
 - `src/app/api/cron/` — Vercel Cron endpoints
+- `src/app/board/[token]/` — public live board (no auth), revalidate=30
 - `src/features/` — all product features
+  - `keywords/` — add/edit/delete keywords, groups, location assignments
+  - `properties/` — property management
+  - `rankings/` — position history, charts, dashboard stats
+  - `boards/` — live board generation (`getOrCreateBoard`), public display
+
+## Doc Update Rule
+
+**Always update README.md, CLAUDE.md, and PLAN.md in the same commit as any meaningful feature or architecture change.** Never let docs drift behind the code.
 
 ## Branch
 

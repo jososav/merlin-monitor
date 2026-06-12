@@ -1,36 +1,137 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Merlin — SEO Rank Intelligence
 
-## Getting Started
+Dark-mode SEO rank tracking platform. Track Google positions for keywords across properties, visualize history, and display live rankings on any screen.
 
-First, run the development server:
+**Stack:** Next.js 16 · Supabase (PostgreSQL) · Drizzle ORM · shadcn/ui · Recharts · Vercel Cron
+
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Realms** | Multi-tenant workspaces — all data is scoped per Realm |
+| **Properties** | Track multiple websites per Realm |
+| **Keywords** | Add/edit/delete keywords with frequency, group, property, and location assignments |
+| **Locations** | 15 country/region locations + 51 US states (searchable, grouped) |
+| **SERP Checks** | SerpAPI integration — auto-checked on Vercel Cron (every 30 min) |
+| **Rankings** | Position history table with current/prev position + delta badges |
+| **Position Chart** | Click any ranking row → inverted Y-axis line chart (Recharts) |
+| **Dashboard** | Stat cards, top movers, recent activity feed |
+| **Live Board** | Public fullscreen TV dashboard — auto-rotating slides, no login needed |
+
+---
+
+## Live Board
+
+Dashboard → **Live Board** button → select property → copy URL → open on any TV or screen.
+
+- Auto-rotates: Overview stats → Top Ranked → Rising → Dropping
+- Refreshes data every 30 seconds
+- Fullscreen button built-in
+- No authentication required
+
+---
+
+## Setup
+
+### 1. Install
+
+```bash
+npm install
+```
+
+### 2. Environment variables
+
+Copy `.env.example` to `.env.local` and fill in:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Transaction Pooler (port 6543) — app runtime
+DATABASE_URL=postgresql://postgres.ref:password@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+
+# Session Pooler (port 5432) — drizzle-kit migrations only
+DIRECT_URL=postgresql://postgres.ref:password@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+
+SERP_API_KEY=        # from serpapi.com
+RESEND_API_KEY=      # from resend.com (for alerts — Phase 5)
+CRON_SECRET=         # any random string, e.g. openssl rand -hex 32
+```
+
+### 3. Push schema
+
+```bash
+npx drizzle-kit push
+```
+
+### 4. Seed locations
+
+```bash
+npm run db:seed          # country/region locations
+npm run db:seed:states   # 51 US states (run once)
+```
+
+### 5. Dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cron (local testing)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Trigger a ranking check manually:
 
-## Learn More
+```bash
+curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3000/api/cron/check-rankings
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+  app/
+    (app)/          Authenticated routes (dashboard, keywords, rankings, settings)
+    board/[token]/  Public live board — no auth
+    api/cron/       Vercel Cron endpoints
+    api/serp/       On-demand SERP check
+  features/
+    keywords/       Add/edit/delete keywords, groups, frequency
+    properties/     Property management
+    rankings/       Rankings table, charts, dashboard stats
+    boards/         Live board generation and public display
+    realms/         Onboarding, realm creation
+  db/
+    schema.ts       All 13 Drizzle tables
+    relations.ts    Drizzle relations
+    seed-locations.ts
+    seed-us-states.ts
+  lib/
+    auth.ts         requireUser, requireRealm helpers
+    serp.ts         SerpAPI wrapper + computeNextCheckAt
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Vocabulary
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Term | Meaning |
+|------|---------|
+| **Realm** | Tenant workspace (never "organization") |
+| **Property** | Tracked website (never "domain" or "site") |
+| **Keyword** | Search term monitored for one or more Properties |
+| **Ranking** | Position snapshot: keyword × property × location × date |
+
+---
+
+## Deploy
+
+1. Push to GitHub
+2. Import in Vercel → set all env vars
+3. Vercel reads `vercel.json` and schedules the cron automatically (`*/30 * * * *`)
