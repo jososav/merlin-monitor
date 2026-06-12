@@ -1,13 +1,24 @@
-export default function KeywordsPage() {
+import { requireRealm } from "@/lib/auth"
+import { getKeywords, getKeywordGroups, getSearchLocations } from "@/features/keywords/queries"
+import { getProperties } from "@/features/properties/queries"
+import { KeywordsPageClient } from "@/features/keywords/components/keywords-page-client"
+
+export default async function KeywordsPage() {
+  const { realm } = await requireRealm()
+
+  const [keywords, groups, properties, locations] = await Promise.all([
+    getKeywords(realm.id),
+    getKeywordGroups(realm.id),
+    getProperties(realm.id),
+    getSearchLocations(),
+  ])
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Keywords</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Manage the terms you&apos;re tracking.
-        </p>
-      </div>
-      <div className="text-muted-foreground text-sm">No keywords yet. Cast your first spell.</div>
-    </div>
+    <KeywordsPageClient
+      keywords={keywords}
+      groups={groups}
+      properties={properties}
+      locations={locations}
+    />
   )
 }
