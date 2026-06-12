@@ -8,7 +8,8 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    // Use Session Pooler (port 5432) or direct URL for migrations — not Transaction Pooler
+    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL!,
     ssl: true,
   },
 })
