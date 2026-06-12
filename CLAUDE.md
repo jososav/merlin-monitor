@@ -59,12 +59,12 @@ All scheduling lives in `src/app/api/cron/`. No external job queues, no paid ser
 - `src/db/schema.ts` — Drizzle schema, all tables
 - `src/lib/serp.ts` — SerpAPI client wrapper
 - `src/app/api/cron/` — Vercel Cron endpoints
-- `src/app/board/[token]/` — public live board (no auth), revalidate=30
+- `src/app/board/[token]/` — public live board (no auth), `revalidate=1800` (30 min)
 - `src/features/` — all product features
   - `keywords/` — add/edit/delete keywords, groups, location assignments
   - `properties/` — property management
   - `rankings/` — position history, charts, dashboard stats
-  - `boards/` — live board generation (`getOrCreateBoard`), public display
+  - `boards/` — live board generation (`getOrCreateBoard`), public display, 7-day trend slide
 
 ## Doc Update Rule
 
@@ -135,6 +135,14 @@ RESEND_API_KEY
 CRON_SECRET
 ```
 
+## Live Board
+
+- Slides: Overview → Top Ranked → 7-Day Trend → Rising → Dropping (auto-advance every 8s)
+- Trend slide: Recharts `AreaChart`, inverted Y-axis, best position per day across all locations per keyword
+- Keyword cycling: one keyword shown per full board rotation (`rotationCount` state, incremented via `prevSlideRef`)
+- Data refresh: `revalidate = 1800` (ISR) + `router.refresh()` every 30 min client-side
+- Board tokens stored in `report_tokens` with `config.type = "board"`; `getOrCreateBoard` is idempotent
+
 ## Do Not
 
 - Use "organization", "domain", or "site" — always Realm / Property
@@ -144,3 +152,4 @@ CRON_SECRET
 - Add light mode styles
 - Put business logic directly in `src/app/` route files
 - Use API routes for CRUD mutations (use Server Actions)
+- Change board refresh to < 30 min — intentionally conservative to avoid SERP API cost spikes
