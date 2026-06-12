@@ -246,6 +246,50 @@ report_tokens
 
 ---
 
+## Phase 7 — Live Public Board
+
+A fullscreen, public TV dashboard — share a URL, open on any screen, auto-rotating slides with live rank data. No auth required.
+
+### URL
+`/board/[token]` — publicly accessible, token stored in `report_tokens` with `config.type = "board"`
+
+### Slides (auto-advance every 8s)
+1. **Overview** — 4 hero stat cards: keywords tracked · avg position · % top 3 · % top 10
+2. **Top Ranked** — up to 10 keywords with position ≤ 10, large rank-number display
+3. **Rising** — biggest positive delta in last 7 days, green arrows
+4. **Dropping** — biggest negative delta (only shown if data exists), red arrows
+
+### UI / Design
+- Full viewport, dark `#0D0B14` background with subtle animated violet gradient pulse
+- Header: property name · pulsing `LIVE` badge · current time · fullscreen button
+- Per-slide progress bar at bottom
+- Fade + translateY transition between slides
+- Slide indicator dots
+- `Powered by Merlin` watermark bottom-right
+- Large `Geist Mono` position numbers (hero data point)
+- Auto-refresh: `export const revalidate = 30` + client `router.refresh()` every 30s
+
+### Board creation
+- Dashboard header → **Live Board** button (client component)
+- Dialog: property selector + generated URL + copy-link button
+- Server action `getOrCreateBoard(propertyId)` — idempotent, reuses existing token
+
+### Files
+```
+src/features/boards/
+  actions.ts          getOrCreateBoard — creates/fetches report_token with type:"board"
+  queries.ts          getBoardConfig, getBoardData
+  components/
+    live-board-button.tsx   dashboard button + dialog
+src/app/board/[token]/
+  page.tsx            public server component, revalidate=30
+  board-client.tsx    carousel, progress bar, clock, fullscreen, refresh
+```
+
+**Done when:** shareable URL opens full-screen TV board with live rotating slides and auto-refresh.
+
+---
+
 ## Future Modules (post-MVP)
 
 These are not planned yet — listed to inform architectural decisions today.

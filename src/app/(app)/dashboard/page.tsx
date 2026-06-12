@@ -5,16 +5,19 @@ import {
   computeTopMovers,
   getRecentActivity,
 } from "@/features/rankings/queries"
+import { getProperties } from "@/features/properties/queries"
 import { DashboardStatsCards } from "@/features/rankings/components/dashboard-stats"
 import { TopMovers } from "@/features/rankings/components/top-movers"
 import { RecentActivity } from "@/features/rankings/components/recent-activity"
+import { LiveBoardButton } from "@/features/boards/components/live-board-button"
 
 export default async function DashboardPage() {
   const { realm } = await requireRealm()
 
-  const [rankings, activity] = await Promise.all([
+  const [rankings, activity, properties] = await Promise.all([
     getRankingsWithDelta(realm.id, 7),
     getRecentActivity(realm.id, 10),
+    getProperties(realm.id),
   ])
 
   const stats = computeDashboardStats(rankings)
@@ -22,11 +25,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {realm.name} — your realm at a glance.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {realm.name} — your realm at a glance.
+          </p>
+        </div>
+        {properties.length > 0 && <LiveBoardButton properties={properties} />}
       </div>
 
       <DashboardStatsCards stats={stats} />
