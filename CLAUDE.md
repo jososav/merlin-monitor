@@ -92,13 +92,34 @@ Dark mode only. No light mode.
 - Gradient borders on cards: `linear-gradient(135deg, #7C3AED22, #06B6D422)`
 - Empty states use wizard-flavored copy ("No keywords yet. Cast your first spell.")
 
+## Database Connection
+
+Two separate URLs required — Transaction Pooler for the app, Session Pooler for migrations:
+
+| Variable | Port | Used by |
+|----------|------|---------|
+| `DATABASE_URL` | 6543 (Transaction Pooler) | App at runtime (`src/db/index.ts`) — `prepare: false, max: 1` |
+| `DIRECT_URL` | 5432 (Session Pooler) | `drizzle-kit push` migrations only |
+
+`db/index.ts` always uses `prepare: false` — Transaction Pooler (PgBouncer) does not support prepared statements.
+
+## Seed Scripts
+
+```bash
+npm run db:seed          # 15 country/region locations
+npm run db:seed:states   # 51 US states (50 + DC) — run once after setup
+```
+
+US states are stored as `{ name: "California", serpApiValue: "California, United States", countryCode: "us" }`. The location picker groups them under a "US States" heading automatically.
+
 ## Environment Variables
 
 ```
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SERVICE_ROLE_KEY
-DATABASE_URL
+DATABASE_URL          # Transaction Pooler — port 6543
+DIRECT_URL            # Session Pooler — port 5432 (drizzle-kit only)
 SERP_API_KEY
 RESEND_API_KEY
 CRON_SECRET

@@ -36,7 +36,13 @@ export function KeywordsPageClient({ keywords, groups, properties, locations }: 
           onGroupChange={setActiveGroupId}
         />
         <div className="flex-1 min-w-0">
-          <KeywordsTable keywords={keywords} activeGroupId={activeGroupId} />
+          <KeywordsTable
+            keywords={keywords}
+            activeGroupId={activeGroupId}
+            properties={properties}
+            groups={groups}
+            locations={locations}
+          />
         </div>
       </div>
     </div>

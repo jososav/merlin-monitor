@@ -53,6 +53,52 @@ export async function createKeyword(data: {
   }
 }
 
+export async function updateKeyword(
+  keywordId: string,
+  data: {
+    term: string
+    checkFrequency: string
+    groupId?: string
+    propertyIds: string[]
+    locationIds: string[]
+  }
+) {
+  const { realm } = await requireRealm()
+
+  const parsed = keywordSchema.safeParse(data)
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const { term, checkFrequency, groupId, propertyIds, locationIds } = parsed.data
+
+  // Verify keyword belongs to realm
+  const [kw] = await db
+    .select({ id: keywords.id })
+    .from(keywords)
+    .where(and(eq(keywords.id, keywordId), eq(keywords.realmId, realm.id)))
+  if (!kw) return { error: "Keyword not found" }
+
+  await db
+    .update(keywords)
+    .set({ term: term.trim(), checkFrequency: checkFrequency as "1h" | "2h" | "6h" | "12h" | "24h" })
+    .where(eq(keywords.id, keywordId))
+
+  await db.delete(keywordGroupMembers).where(eq(keywordGroupMembers.keywordId, keywordId))
+  if (groupId) {
+    await db.insert(keywordGroupMembers).values({ keywordId, groupId })
+  }
+
+  await db.delete(keywordPropertyLocations).where(eq(keywordPropertyLocations.keywordId, keywordId))
+  const kplRows = propertyIds.flatMap((propertyId) =>
+    locationIds.map((locationId) => ({ keywordId, propertyId, locationId }))
+  )
+  if (kplRows.length > 0) {
+    await db.insert(keywordPropertyLocations).values(kplRows)
+  }
+
+  revalidatePath("/keywords")
+  return { success: true }
+}
+
 export async function deleteKeyword(keywordId: string) {
   const { realm } = await requireRealm()
   await db.delete(keywords).where(

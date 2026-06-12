@@ -164,75 +164,52 @@ report_tokens
 
 ---
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation ✅
 
-- [ ] `npx create-next-app@latest . --typescript --tailwind --app --src-dir`
-- [ ] Install: `shadcn/ui` (new-york, violet), `drizzle-orm`, `drizzle-kit`, `@supabase/supabase-js`, `@supabase/ssr`
-- [ ] `src/db/schema.ts` — all tables above
-- [ ] `drizzle-kit push` → apply schema to Supabase
-- [ ] Supabase Auth with Google OAuth configured
-- [ ] Middleware: protect all routes except `/login` and `/reports/[token]`
-- [ ] `globals.css` — dark violet theme vars (bg `#0D0B14`, primary `#7C3AED`, cyan `#06B6D4`)
-- [ ] App shell: sidebar nav + realm switcher header
-- [ ] Onboarding flow: create Realm → add first Property
-- [ ] `.env.example` with all required vars
-
-**Done when:** can sign in with Google, complete onboarding, see empty dashboard.
+- [x] Next.js 16 App Router scaffold with Turbopack
+- [x] shadcn/ui (new-york), Drizzle ORM, Supabase Auth, `@supabase/ssr`
+- [x] `src/db/schema.ts` — 13 tables + enums
+- [x] `drizzle-kit push` via Session Pooler (port 5432, `ssl: require`)
+- [x] Google OAuth via Supabase Auth
+- [x] `src/proxy.ts` (Next.js 16 middleware rename) — auth guard, public paths
+- [x] Dark violet "Tech Wizard" theme in `globals.css` — Tailwind v4 `@theme inline` with `hsl()` wrappers
+- [x] App shell: sidebar nav, realm-scoped layout
+- [x] Onboarding: create Realm → add first Property
+- [x] `.env.example` with all vars
 
 ---
 
-## Phase 2 — Data Management (CRUD)
+## Phase 2 — Data Management (CRUD) ✅
 
-- [ ] **Properties** (`src/features/properties/`):
-  - List in settings, add/remove
-  - Display name + URL validation
-- [ ] **Keywords** (`src/features/keywords/`):
-  - Table: keyword | frequency | locations | group | last checked | actions
-  - Add keyword modal: term + frequency + property assignments + locations + group
-  - Edit / delete / bulk actions
-  - Group sidebar (All Keywords + group chips)
-- [ ] **Search Locations**: pre-seeded from SerpAPI canonical list, searchable combobox
-- [ ] **Competitors** (`src/features/competitors/`): add competitor URLs per Property
-- [ ] **Realm Members** (`src/features/realms/`): invite by email, assign roles
-
-**Done when:** can add a keyword with locations, frequency, and group assignment.
+- [x] **Properties**: list in settings, add/remove, URL validation
+- [x] **Keywords**: table with frequency inline-select, group sidebar, add/edit/delete
+  - Add keyword: term, frequency, property chips, location combobox (grouped: Locations / US States)
+  - Edit keyword: same form pre-populated, replaces property-location assignments
+  - US States: 51 locations seeded (`npm run db:seed:states`)
+- [x] **Search Locations**: 15 country/region + 51 US states, grouped combobox with search
+- [x] **Groups**: create/delete groups, filter keywords by group
 
 ---
 
-## Phase 3 — SERP Integration & Scheduling
+## Phase 3 — SERP Integration & Scheduling ✅
 
-- [ ] `src/lib/serp.ts` — SerpAPI wrapper
-  - `checkKeyword({ term, location, propertyUrl })` → `{ position, url, title } | null`
-- [ ] `src/app/api/cron/check-rankings/route.ts` — Vercel Cron (GET, secured with `CRON_SECRET`)
-  - Query: `keyword_property_locations` JOIN `keywords` WHERE `next_check_at <= now()` LIMIT 50
-  - Run SerpAPI calls, upsert to `rankings`
-  - Update `last_checked_at`, compute `next_check_at = now() + check_frequency`
-  - Mark batch status in `serp_batches`
-- [ ] `vercel.json` cron: `*/30 * * * *`
-- [ ] `POST /api/serp/check-now` — marks keyword due immediately for next cron tick
-- [ ] Status indicator in keywords table: idle / pending / running / last checked timestamp
-
-**Done when:** keyword check runs end-to-end, ranking row appears in DB.
+- [x] `src/lib/serp.ts` — SerpAPI wrapper, URL prefix matching, `computeNextCheckAt`
+- [x] `GET /api/cron/check-rankings` — Vercel Cron, `Authorization: Bearer CRON_SECRET`, LIMIT 50
+- [x] `POST /api/serp/check-now` — marks keyword due immediately
+- [x] `vercel.json` cron: `*/30 * * * *`
+- [x] `serp_batches` tracking: pending → running → done/failed
+- [x] Rankings upsert: `ON CONFLICT (keyword_id, property_id, location_id, date) DO UPDATE`
+- [x] DB connection: Transaction Pooler (port 6543, `prepare: false`) for app; Session Pooler for drizzle-kit
+- [x] `/api/cron` added to public paths in proxy.ts
 
 ---
 
-## Phase 4 — Rankings & Dashboard
+## Phase 4 — Rankings & Dashboard ✅
 
-- [ ] **Rankings page** (`src/features/rankings/`):
-  - Filter bar: property, keyword, location, date range (14d / 30d / custom)
-  - Table: keyword | current position | prev position | Δ change (colored arrow) | URL | last checked
-  - Expandable row → sparkline of position history
-- [ ] **Rankings chart**:
-  - Line chart: position over time, inverted Y-axis (1 = top)
-  - Toggle multiple keywords on same chart
-  - Area chart: position bucket distribution (1, 2–3, 4–5, 6–7, 8–10, >10)
-  - 14d / 30d / custom range toggle
-- [ ] **Dashboard** (`src/features/rankings/`):
-  - Summary cards: keywords tracked, avg position, % in top 3, % in top 10
-  - Top movers: biggest Δ in last 24h (up and down)
-  - Recent SERP batch activity feed
-
-**Done when:** after a few checks, dashboard shows real data, charts render with history.
+- [x] `src/features/rankings/queries.ts`: `getRankingsWithDelta`, `computeDashboardStats`, `computeTopMovers`, `getPositionHistory`, `getRecentActivity`
+- [x] **Rankings page**: filter by property + keyword search + 14d/30d toggle; table with current/prev position + delta badges; click row → position history chart (Recharts, inverted Y-axis)
+- [x] **Dashboard**: 4 stat cards (keywords, avg position, top 3%, top 10%); top movers grid (rising/dropping); recent SERP batch activity feed
+- [x] Recharts `LineChart` with `reversed` Y-axis, violet color, null-gap handling
 
 ---
 
