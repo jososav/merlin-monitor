@@ -1,48 +1,45 @@
 import { requireRealm } from "@/lib/auth"
-import { getRankingsWithDelta, getPositionHistory } from "@/features/rankings/queries"
-import { RankingsPageClient } from "@/features/rankings/components/rankings-page-client"
+import { getHeatmapData } from "@/features/rankings/queries"
+import { RankingsHeatmap } from "@/features/rankings/components/rankings-heatmap"
 import { getProperties } from "@/features/properties/queries"
 
 export default async function RankingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ k?: string; p?: string; l?: string; days?: string }>
+  searchParams: Promise<{ property?: string; days?: string }>
 }) {
   const { realm } = await requireRealm()
-  const { k, p, l, days: daysParam } = await searchParams
-  const days = daysParam === "14" ? 14 : 30
+  const { property, days: daysParam } = await searchParams
 
-  const [rankingsData, propertiesData] = await Promise.all([
-    getRankingsWithDelta(realm.id, days),
-    getProperties(realm.id),
-  ])
+  const days = [7, 14, 30].includes(Number(daysParam)) ? Number(daysParam) : 7
 
-  let history: { date: string; position: number | null }[] = []
-  if (k && p && l) {
-    history = await getPositionHistory(k, p, l, days)
-  }
+  const propertiesData = await getProperties(realm.id)
+  const propertyId = property ?? propertiesData[0]?.id ?? null
 
-  const selectedKey = k && p && l ? `${k}:${p}:${l}` : null
+  const data = propertyId ? await getHeatmapData(realm.id, propertyId, days) : null
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Rankings</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Position history across your properties.
+          Position snapshots across your keywords.
         </p>
       </div>
 
-      {rankingsData.length === 0 ? (
+      {propertiesData.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">
-          No rankings yet. The cron will check once keywords are added.
+          No properties yet. Add one in Settings.
+        </div>
+      ) : !propertyId || !data ? (
+        <div className="text-center py-16 text-muted-foreground text-sm">
+          Select a property to view rankings.
         </div>
       ) : (
-        <RankingsPageClient
-          rankings={rankingsData}
+        <RankingsHeatmap
+          data={data}
           properties={propertiesData.map((p) => ({ id: p.id, displayName: p.displayName }))}
-          history={history}
-          selectedKey={selectedKey}
+          propertyId={propertyId}
           days={days}
         />
       )}

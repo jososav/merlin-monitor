@@ -157,6 +157,110 @@ export interface ActivityItem {
   displayName: string
 }
 
+// ─── Heatmap ──────────────────────────────────────────────────────────────────
+
+export interface HeatmapColumn {
+  key: string
+  keywordId: string
+  term: string
+  locationId: string
+  locationName: string
+}
+
+export interface HeatmapSnapshot {
+  date: string
+  time: string
+  positions: Record<string, number | null>
+}
+
+export interface HeatmapGroup {
+  date: string
+  snapshots: HeatmapSnapshot[]
+}
+
+export interface HeatmapData {
+  columns: HeatmapColumn[]
+  groups: HeatmapGroup[]
+}
+
+export async function getHeatmapData(
+  realmId: string,
+  propertyId: string,
+  days: number = 7
+): Promise<HeatmapData> {
+  const since = new Date()
+  since.setDate(since.getDate() - days)
+  const sinceStr = since.toISOString().split("T")[0]
+
+  const rows = await db
+    .select({
+      keywordId: rankings.keywordId,
+      locationId: rankings.locationId,
+      position: rankings.position,
+      date: rankings.date,
+      checkedAt: rankings.checkedAt,
+      term: keywords.term,
+      locationName: searchLocations.name,
+    })
+    .from(rankings)
+    .innerJoin(keywords, eq(rankings.keywordId, keywords.id))
+    .innerJoin(searchLocations, eq(rankings.locationId, searchLocations.id))
+    .where(
+      and(
+        eq(keywords.realmId, realmId),
+        eq(rankings.propertyId, propertyId),
+        gte(rankings.date, sinceStr)
+      )
+    )
+    .orderBy(desc(rankings.checkedAt))
+
+  // Build columns from unique (keyword, location) combos
+  const colMap = new Map<string, HeatmapColumn>()
+  for (const row of rows) {
+    const key = `${row.keywordId}:${row.locationId}`
+    if (!colMap.has(key)) {
+      colMap.set(key, {
+        key,
+        keywordId: row.keywordId,
+        term: row.term,
+        locationId: row.locationId,
+        locationName: row.locationName,
+      })
+    }
+  }
+  const columns = Array.from(colMap.values())
+
+  // Group by date → hour (HH:00 UTC), keep latest per column (rows sorted desc)
+  const tree = new Map<string, Map<string, Map<string, number | null>>>()
+  for (const row of rows) {
+    const ca = row.checkedAt instanceof Date ? row.checkedAt : new Date(String(row.checkedAt))
+    const hour = ca.toISOString().slice(11, 13) + ":00"
+    const colKey = `${row.keywordId}:${row.locationId}`
+    if (!tree.has(row.date)) tree.set(row.date, new Map())
+    const hourMap = tree.get(row.date)!
+    if (!hourMap.has(hour)) hourMap.set(hour, new Map())
+    const posMap = hourMap.get(hour)!
+    if (!posMap.has(colKey)) posMap.set(colKey, row.position)
+  }
+
+  const groups: HeatmapGroup[] = Array.from(tree.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([date, hourMap]) => ({
+      date,
+      snapshots: Array.from(hourMap.entries())
+        .sort((a, b) => b[0].localeCompare(a[0]))
+        .map(([time, posMap]) => ({
+          date,
+          time,
+          positions: Object.fromEntries(
+            columns.map((col) => [col.key, posMap.get(col.key) ?? null])
+          ),
+        })),
+    }))
+
+  return { columns, groups }
+}
+
 export async function getRecentActivity(
   realmId: string,
   limit: number = 10
