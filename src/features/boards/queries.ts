@@ -18,12 +18,6 @@ export interface BoardRankingRow {
   delta: number | null
 }
 
-export interface KeywordHistory {
-  keywordId: string
-  term: string
-  points: { date: string; position: number | null }[]
-}
-
 export interface BoardHeatmapColumn {
   keywordId: string
   term: string
@@ -50,7 +44,6 @@ export interface BoardData {
   topRanked: BoardRankingRow[]
   rising: BoardRankingRow[]
   dropping: BoardRankingRow[]
-  keywordHistories: KeywordHistory[]
   /** Last 24h snapshots — best position per keyword per hour across all locations */
   heatmap: BoardHeatmap
 }
@@ -93,31 +86,6 @@ export async function getBoardData(propertyId: string): Promise<BoardData> {
     .innerJoin(searchLocations, eq(rankings.locationId, searchLocations.id))
     .where(and(eq(rankings.propertyId, propertyId), gte(rankings.date, sinceStr)))
     .orderBy(desc(rankings.checkedAt))
-
-  // ── Build full 7-day history per keyword (best position per day) ──────────
-  // Must be done on ALL rows before the 2-row grouping below
-  const historyAccum = new Map<string, { term: string; days: Map<string, number | null> }>()
-  for (const row of rows) {
-    const kh = historyAccum.get(row.keywordId) ?? { term: row.term, days: new Map() }
-    const existing = kh.days.get(row.date)
-    if (
-      existing === undefined ||
-      (row.position !== null && (existing === null || row.position < existing))
-    ) {
-      kh.days.set(row.date, row.position)
-    }
-    historyAccum.set(row.keywordId, kh)
-  }
-
-  const keywordHistories: KeywordHistory[] = Array.from(historyAccum.entries()).map(
-    ([keywordId, { term, days }]) => ({
-      keywordId,
-      term,
-      points: Array.from(days.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([date, position]) => ({ date, position })),
-    })
-  )
 
   // ── Last-24h heatmap: best position per keyword per hour ─────────────────
   const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -213,7 +181,6 @@ export async function getBoardData(propertyId: string): Promise<BoardData> {
       .filter((r) => r.delta !== null && r.delta < 0)
       .sort((a, b) => a.delta! - b.delta!)
       .slice(0, 8),
-    keywordHistories,
     heatmap,
   }
 }

@@ -137,9 +137,9 @@ CRON_SECRET
 
 ## Live Board
 
-- Slides: Overview → Top Ranked → 7-Day Trend → Last 24h → Rising → Dropping (auto-advance every 8s)
-- Trend slide: Recharts `AreaChart`, inverted Y-axis, best position per day across all locations per keyword
-- Keyword cycling: one keyword shown per full board rotation (`rotationCount` state, incremented via `prevSlideRef`)
+- Slides: Overview → Top Ranked → 24h Trend → Last 24h → Rising → Dropping (auto-advance every 8s)
+- 24h Trend slide: Recharts `AreaChart`, inverted Y-axis, best position per hour for one keyword — much denser than daily (up to 48 points/day at 30-min checks)
+- Keyword cycling: one keyword shown per full board rotation (`rotationCount` state, incremented via `prevSlideRef`); sourced from `heatmap.columns`
 - Last 24h slide: heatmap grid — keyword columns × hourly rows, color-coded by rank (#1 emerald → >10 dark red dashed), capped at 12 keywords for TV readability
 - Data refresh: `revalidate = 1800` (ISR) + `router.refresh()` every 30 min client-side
 - Board tokens stored in `report_tokens` with `config.type = "board"`; `getOrCreateBoard` is idempotent

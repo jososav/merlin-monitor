@@ -256,7 +256,7 @@ A fullscreen, public TV dashboard — share a URL, open on any screen, auto-rota
 ### Slides (auto-advance every 8s)
 1. **Overview** — 4 hero stat cards: keywords tracked · avg position · % top 3 · % top 10
 2. **Top Ranked** — up to 10 keywords with position ≤ 20, large rank-number display
-3. **7-Day Trend** — Recharts AreaChart showing best position per day for one keyword; cycles one keyword per full board rotation; best/worst day annotated; keyword counter shown (e.g. "3 / 12")
+3. **24h Trend** — Recharts AreaChart showing best position per hour for one keyword; cycles one keyword per full board rotation; best/worst hour annotated; keyword counter shown (e.g. "3 / 12"); up to 48 data points at 30-min check frequency
 4. **Last 24h** — heatmap grid: keyword columns × hourly snapshot rows, color-coded (#1 emerald → >10 dark red dashed), capped at 12 keywords for TV
 5. **Rising** — biggest positive delta in last 7 days, green arrows
 6. **Dropping** — biggest negative delta (only shown if data exists), red arrows

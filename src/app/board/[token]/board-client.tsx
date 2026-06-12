@@ -13,7 +13,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { cn } from "@/lib/utils"
-import type { BoardConfig, BoardData, KeywordHistory, BoardHeatmap } from "@/features/boards/queries"
+import type { BoardConfig, BoardData, BoardHeatmap, BoardHeatmapColumn } from "@/features/boards/queries"
 
 const SLIDE_DURATION = 8000
 
@@ -32,16 +32,12 @@ export function BoardClient({ config, data }: Props) {
   const [rotationCount, setRotationCount] = useState(0)
   const prevSlideRef = useRef(-1)
 
-  // Deduplicated keywords for history cycling
-  const historyKeywords = [
-    ...new Map(data.keywordHistories.map((kh) => [kh.keywordId, kh])).values(),
-  ]
-  const activeHistory =
-    historyKeywords.length > 0
-      ? historyKeywords[rotationCount % historyKeywords.length]
-      : null
+  // Keyword cycling for hourly trend slide — sourced from heatmap columns
+  const trendKeywords = data.heatmap.columns
+  const activeTrendKeyword =
+    trendKeywords.length > 0 ? trendKeywords[rotationCount % trendKeywords.length] : null
 
-  const slides = buildSlides(data, activeHistory, rotationCount, historyKeywords.length)
+  const slides = buildSlides(data, activeTrendKeyword, rotationCount, trendKeywords.length)
 
   // Detect full rotation (slide wraps from last → 0) → advance keyword
   useEffect(() => {
@@ -215,9 +211,9 @@ export function BoardClient({ config, data }: Props) {
 
 function buildSlides(
   data: BoardData,
-  activeHistory: KeywordHistory | null,
+  activeTrendKeyword: BoardHeatmapColumn | null,
   rotationCount: number,
-  totalHistoryKeywords: number
+  totalTrendKeywords: number
 ) {
   return [
     {
@@ -228,16 +224,17 @@ function buildSlides(
     ...(data.topRanked.length > 0
       ? [{ id: "top-ranked", title: "Top Ranked", content: <TopRankedSlide rows={data.topRanked} /> }]
       : []),
-    ...(activeHistory
+    ...(activeTrendKeyword && data.heatmap.rows.length > 0
       ? [
           {
-            id: `history-${rotationCount}`,
-            title: "7-Day Trend",
+            id: `trend-${rotationCount}`,
+            title: "24h Trend",
             content: (
-              <HistorySlide
-                history={activeHistory}
-                keywordIndex={rotationCount % totalHistoryKeywords}
-                totalKeywords={totalHistoryKeywords}
+              <HourlyTrendSlide
+                keyword={activeTrendKeyword}
+                heatmap={data.heatmap}
+                keywordIndex={rotationCount % totalTrendKeywords}
+                totalKeywords={totalTrendKeywords}
               />
             ),
           },
@@ -363,46 +360,45 @@ function TopRankedSlide({ rows }: { rows: BoardData["topRanked"] }) {
   )
 }
 
-function HistorySlide({
-  history,
+function HourlyTrendSlide({
+  keyword,
+  heatmap,
   keywordIndex,
   totalKeywords,
 }: {
-  history: KeywordHistory
+  keyword: BoardHeatmapColumn
+  heatmap: BoardHeatmap
   keywordIndex: number
   totalKeywords: number
 }) {
-  const nonNull = history.points.filter((p) => p.position !== null)
-  const best = nonNull.length
-    ? nonNull.reduce((a, b) => (a.position! < b.position! ? a : b))
-    : null
-  const worst = nonNull.length
-    ? nonNull.reduce((a, b) => (a.position! > b.position! ? a : b))
-    : null
-  const maxPos = nonNull.length ? Math.max(...nonNull.map((p) => p.position!)) + 3 : 20
+  // Build hourly series for this keyword from heatmap rows (already sorted desc)
+  const chartData = [...heatmap.rows]
+    .reverse()
+    .map((row) => ({
+      time: row.time,
+      position: row.positions[keyword.keywordId] ?? null,
+    }))
 
-  const data = history.points.map((p) => ({
-    date: formatDate(p.date),
-    position: p.position,
-  }))
+  const nonNull = chartData.filter((p) => p.position !== null)
+  const best = nonNull.length ? nonNull.reduce((a, b) => (a.position! < b.position! ? a : b)) : null
+  const worst = nonNull.length ? nonNull.reduce((a, b) => (a.position! > b.position! ? a : b)) : null
+  const maxPos = nonNull.length ? Math.max(...nonNull.map((p) => p.position!)) + 3 : 20
 
   return (
     <div className="flex flex-col max-w-4xl mx-auto w-full gap-5">
-      {/* Keyword header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white truncate">{history.term}</h2>
-          <p className="text-white/35 text-sm mt-1">Position over the last 7 days</p>
+          <h2 className="text-3xl font-bold text-white truncate">{keyword.term}</h2>
+          <p className="text-white/35 text-sm mt-1">Hourly positions — last 24 hours</p>
         </div>
         <span className="rank-number text-xs text-white/20 mt-1 shrink-0 ml-4">
           {keywordIndex + 1} / {totalKeywords}
         </span>
       </div>
 
-      {/* Chart */}
       <div className="w-full" style={{ height: 320 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#7C3AED" stopOpacity={0.35} />
@@ -411,14 +407,15 @@ function HistorySlide({
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
             <XAxis
-              dataKey="date"
-              tick={{ fill: "#94A3B8", fontSize: 13 }}
+              dataKey="time"
+              tick={{ fill: "#94A3B8", fontSize: 12 }}
               axisLine={false}
               tickLine={false}
+              interval="preserveStartEnd"
             />
             <YAxis
               reversed
-              domain={[maxPos, 0]}
+              domain={[maxPos, 1]}
               tick={{ fill: "#94A3B8", fontSize: 13 }}
               tickCount={6}
               axisLine={false}
@@ -433,10 +430,7 @@ function HistorySlide({
                 fontSize: 13,
               }}
               labelStyle={{ color: "#94A3B8" }}
-              formatter={(value) => [
-                value == null ? "Not ranked" : `#${value}`,
-                "Position",
-              ]}
+              formatter={(value) => [value == null ? "Not ranked" : `#${value}`, "Position"]}
             />
             <Area
               type="monotone"
@@ -444,33 +438,28 @@ function HistorySlide({
               stroke="#7C3AED"
               strokeWidth={3}
               fill="url(#areaGradient)"
-              dot={{ fill: "#7C3AED", r: 5, strokeWidth: 0 }}
-              activeDot={{ fill: "#7C3AED", r: 7, strokeWidth: 0 }}
+              dot={{ fill: "#7C3AED", r: 4, strokeWidth: 0 }}
+              activeDot={{ fill: "#7C3AED", r: 6, strokeWidth: 0 }}
               connectNulls={false}
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Best / Worst callouts */}
       {nonNull.length > 0 && (
         <div className="flex gap-8 pb-1">
           {best && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-white/30 uppercase tracking-wider">Best</span>
-              <span className="rank-number font-bold text-xl text-emerald-400">
-                #{best.position}
-              </span>
-              <span className="text-xs text-white/25">{formatDate(best.date)}</span>
+              <span className="rank-number font-bold text-xl text-emerald-400">#{best.position}</span>
+              <span className="text-xs text-white/25">{best.time}</span>
             </div>
           )}
-          {worst && worst.date !== best?.date && (
+          {worst && worst.time !== best?.time && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-white/30 uppercase tracking-wider">Worst</span>
-              <span className="rank-number font-bold text-xl text-rose-400">
-                #{worst.position}
-              </span>
-              <span className="text-xs text-white/25">{formatDate(worst.date)}</span>
+              <span className="rank-number font-bold text-xl text-rose-400">#{worst.position}</span>
+              <span className="text-xs text-white/25">{worst.time}</span>
             </div>
           )}
         </div>
