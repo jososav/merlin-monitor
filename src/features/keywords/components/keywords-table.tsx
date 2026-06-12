@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MoreHorizontal, Trash2 } from "lucide-react"
+import { MoreHorizontal, Trash2, RefreshCw } from "lucide-react"
 import { deleteKeyword, updateKeywordFrequency } from "@/features/keywords/actions"
 import { toast } from "sonner"
 import type { KeywordWithRelations } from "@/features/keywords/queries"
@@ -57,6 +57,7 @@ export function KeywordsTable({ keywords, activeGroupId }: Props) {
 
 function KeywordRow({ keyword }: { keyword: KeywordWithRelations }) {
   const [freq, setFreq] = useState(keyword.checkFrequency)
+  const [checking, setChecking] = useState(false)
   const properties = [...new Map(keyword.keywordPropertyLocations.map((kpl) => [kpl.property.id, kpl.property])).values()]
   const locations = [...new Map(keyword.keywordPropertyLocations.map((kpl) => [kpl.location.id, kpl.location])).values()]
 
@@ -64,6 +65,24 @@ function KeywordRow({ keyword }: { keyword: KeywordWithRelations }) {
     setFreq(value as typeof freq)
     await updateKeywordFrequency(keyword.id, value)
     toast.success("Frequency updated.")
+  }
+
+  async function handleCheckNow() {
+    setChecking(true)
+    try {
+      const res = await fetch("/api/serp/check-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywordId: keyword.id }),
+      })
+      if (res.ok) {
+        toast.success("Check queued — results in next cron tick.")
+      } else {
+        toast.error("Failed to queue check.")
+      }
+    } finally {
+      setChecking(false)
+    }
   }
 
   async function handleDelete() {
@@ -113,6 +132,9 @@ function KeywordRow({ keyword }: { keyword: KeywordWithRelations }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleCheckNow} disabled={checking}>
+              <RefreshCw size={14} className="mr-2" /> Check now
+            </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={handleDelete}
