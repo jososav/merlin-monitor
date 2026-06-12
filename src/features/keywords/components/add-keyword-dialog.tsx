@@ -78,7 +78,7 @@ export function AddKeywordDialog({ properties, groups, locations }: Props) {
           <Plus size={14} className="mr-1.5" /> Add Keyword
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-card border-border max-w-md">
+      <DialogContent className="bg-card border-border max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Add Keyword</DialogTitle>
         </DialogHeader>
