@@ -15,8 +15,7 @@ Dark-mode SEO rank tracking platform. Track Google positions for keywords across
 | **Keywords** | Add/edit/delete keywords with frequency, group, property, and location assignments |
 | **Locations** | 15 country/region locations + 51 US states (searchable, grouped) |
 | **SERP Checks** | SerpAPI integration — auto-checked on Vercel Cron (every 30 min) |
-| **Rankings** | Position history table with current/prev position + delta badges |
-| **Position Chart** | Click any ranking row → inverted Y-axis line chart (Recharts) |
+| **Rankings** | Hawkeye-style heatmap: keyword columns × hourly snapshots, color-coded by rank |
 | **Dashboard** | Stat cards, top movers, recent activity feed |
 | **Live Board** | Public fullscreen TV dashboard — auto-rotating slides, no login needed |
 
@@ -26,8 +25,9 @@ Dark-mode SEO rank tracking platform. Track Google positions for keywords across
 
 Dashboard → **Live Board** button → select property → copy URL → open on any TV or screen.
 
-- Auto-rotates: Overview stats → Top Ranked → 7-Day Trend chart → Rising → Dropping
-- Trend slide cycles one keyword per board rotation, showing best/worst positions annotated
+- Auto-rotates: Overview → Top Ranked → 7-Day Trend → Last 24h → Rising → Dropping
+- **7-Day Trend**: AreaChart per keyword, cycles one keyword per full board rotation, best/worst annotated
+- **Last 24h**: heatmap grid — keyword columns × hourly rows, color-coded by rank position
 - Refreshes data every 30 minutes (Next.js ISR + client router.refresh)
 - Fullscreen button built-in
 - No authentication required
