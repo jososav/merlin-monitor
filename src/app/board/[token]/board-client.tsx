@@ -384,7 +384,7 @@ function HistorySlide({
   }))
 
   return (
-    <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full gap-5">
+    <div className="flex flex-col max-w-4xl mx-auto w-full gap-5">
       {/* Keyword header */}
       <div className="flex items-start justify-between">
         <div>
@@ -397,7 +397,7 @@ function HistorySlide({
       </div>
 
       {/* Chart */}
-      <div className="flex-1 min-h-0">
+      <div className="w-full" style={{ height: 320 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>
