@@ -135,4 +135,8 @@ src/
 
 1. Push to GitHub
 2. Import in Vercel → set all env vars
-3. Vercel reads `vercel.json` and schedules the cron automatically (`*/30 * * * *`)
+3. Vercel reads `vercel.json` and schedules a daily fallback cron (`0 0 * * *`)
+4. For every-30-min checks, set up a free job at [cron-job.org](https://cron-job.org):
+   - URL: `https://your-domain.vercel.app/api/cron/check-rankings`
+   - Header: `Authorization: Bearer <CRON_SECRET>`
+   - Schedule: every 30 minutes
