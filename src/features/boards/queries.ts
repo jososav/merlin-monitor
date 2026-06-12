@@ -24,6 +24,21 @@ export interface KeywordHistory {
   points: { date: string; position: number | null }[]
 }
 
+export interface BoardHeatmapColumn {
+  keywordId: string
+  term: string
+}
+
+export interface BoardHeatmapRow {
+  time: string
+  positions: Record<string, number | null>
+}
+
+export interface BoardHeatmap {
+  columns: BoardHeatmapColumn[]
+  rows: BoardHeatmapRow[]
+}
+
 export interface BoardData {
   stats: {
     keywordCount: number
@@ -35,8 +50,9 @@ export interface BoardData {
   topRanked: BoardRankingRow[]
   rising: BoardRankingRow[]
   dropping: BoardRankingRow[]
-  /** Per-keyword 7-day history — best position per day across all locations */
   keywordHistories: KeywordHistory[]
+  /** Last 24h snapshots — best position per keyword per hour across all locations */
+  heatmap: BoardHeatmap
 }
 
 export async function getBoardConfig(token: string): Promise<BoardConfig | null> {
@@ -68,6 +84,7 @@ export async function getBoardData(propertyId: string): Promise<BoardData> {
       locationId: rankings.locationId,
       position: rankings.position,
       date: rankings.date,
+      checkedAt: rankings.checkedAt,
       term: keywords.term,
       locationName: searchLocations.name,
     })
@@ -75,7 +92,7 @@ export async function getBoardData(propertyId: string): Promise<BoardData> {
     .innerJoin(keywords, eq(rankings.keywordId, keywords.id))
     .innerJoin(searchLocations, eq(rankings.locationId, searchLocations.id))
     .where(and(eq(rankings.propertyId, propertyId), gte(rankings.date, sinceStr)))
-    .orderBy(desc(rankings.date))
+    .orderBy(desc(rankings.checkedAt))
 
   // ── Build full 7-day history per keyword (best position per day) ──────────
   // Must be done on ALL rows before the 2-row grouping below
@@ -101,6 +118,48 @@ export async function getBoardData(propertyId: string): Promise<BoardData> {
         .map(([date, position]) => ({ date, position })),
     })
   )
+
+  // ── Last-24h heatmap: best position per keyword per hour ─────────────────
+  const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const recent = rows.filter((r) => {
+    const ca = r.checkedAt instanceof Date ? r.checkedAt : new Date(String(r.checkedAt))
+    return ca >= cutoff24h
+  })
+
+  // Columns: unique keywords, capped at 12 for TV readability (sorted by term)
+  const kwMap = new Map<string, string>()
+  for (const r of recent) kwMap.set(r.keywordId, r.term)
+  const heatmapColumns: BoardHeatmapColumn[] = Array.from(kwMap.entries())
+    .map(([keywordId, term]) => ({ keywordId, term }))
+    .sort((a, b) => a.term.localeCompare(b.term))
+    .slice(0, 12)
+  const colIds = new Set(heatmapColumns.map((c) => c.keywordId))
+
+  // Group by hour → keyword → best (lowest) position across locations
+  // hour key = "HH:00" UTC, sorted desc (most recent first)
+  const hourMap = new Map<string, Map<string, number | null>>()
+  for (const r of recent) {
+    if (!colIds.has(r.keywordId)) continue
+    const ca = r.checkedAt instanceof Date ? r.checkedAt : new Date(String(r.checkedAt))
+    const hour = ca.toISOString().slice(11, 13) + ":00"
+    if (!hourMap.has(hour)) hourMap.set(hour, new Map())
+    const kwPos = hourMap.get(hour)!
+    const existing = kwPos.get(r.keywordId)
+    if (existing === undefined || (r.position !== null && (existing === null || r.position < existing))) {
+      kwPos.set(r.keywordId, r.position)
+    }
+  }
+
+  const heatmapRows: BoardHeatmapRow[] = Array.from(hourMap.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([time, kwPos]) => ({
+      time,
+      positions: Object.fromEntries(
+        heatmapColumns.map((col) => [col.keywordId, kwPos.get(col.keywordId) ?? null])
+      ),
+    }))
+
+  const heatmap: BoardHeatmap = { columns: heatmapColumns, rows: heatmapRows }
 
   // ── Two most recent per (keyword, location) for delta computation ─────────
   const grouped = new Map<string, typeof rows>()
@@ -155,5 +214,6 @@ export async function getBoardData(propertyId: string): Promise<BoardData> {
       .sort((a, b) => a.delta! - b.delta!)
       .slice(0, 8),
     keywordHistories,
+    heatmap,
   }
 }

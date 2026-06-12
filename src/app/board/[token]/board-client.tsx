@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowUp, ArrowDown, Maximize2, Minimize2, Wifi } from "lucide-react"
 import {
@@ -13,7 +13,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { cn } from "@/lib/utils"
-import type { BoardConfig, BoardData, KeywordHistory } from "@/features/boards/queries"
+import type { BoardConfig, BoardData, KeywordHistory, BoardHeatmap } from "@/features/boards/queries"
 
 const SLIDE_DURATION = 8000
 
@@ -242,6 +242,9 @@ function buildSlides(
             ),
           },
         ]
+      : []),
+    ...(data.heatmap.rows.length > 0
+      ? [{ id: "heatmap", title: "Last 24h", content: <HeatmapSlide heatmap={data.heatmap} /> }]
       : []),
     ...(data.rising.length > 0
       ? [{ id: "rising", title: "Rising ↑", content: <MoversSlide rows={data.rising} direction="up" /> }]
@@ -517,6 +520,70 @@ function MoversSlide({
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function HeatmapSlide({ heatmap }: { heatmap: BoardHeatmap }) {
+  const { columns, rows } = heatmap
+
+  function cellInfo(pos: number | null): { label: string; style: React.CSSProperties } {
+    if (pos === null) return { label: "—", style: { background: "#0d0b14", color: "#ffffff18" } }
+    if (pos === 1)   return { label: "1",          style: { background: "#0f3d2e", color: "#10b981" } }
+    if (pos <= 3)    return { label: String(pos),  style: { background: "#0d2b19", color: "#6ee7b7" } }
+    if (pos <= 5)    return { label: String(pos),  style: { background: "#2c2710", color: "#fde68a" } }
+    if (pos <= 7)    return { label: String(pos),  style: { background: "#2c1b09", color: "#fdba74" } }
+    if (pos <= 10)   return { label: String(pos),  style: { background: "#2c0f0f", color: "#fca5a5" } }
+    return { label: ">10", style: { background: "#1a0808", color: "#7f1d1d", border: "1px dashed #7f1d1d55" } }
+  }
+
+  return (
+    <div className="flex flex-col w-full gap-4">
+      <p className="text-white/35 text-sm">Positions by keyword · last 24 hours</p>
+      <div className="overflow-x-auto rounded-lg border border-white/5">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr style={{ background: "#13101F" }}>
+              <th className="px-3 py-2 text-left font-medium text-white/30 w-16 border-b border-white/5">
+                Hour
+              </th>
+              {columns.map((col) => (
+                <th
+                  key={col.keywordId}
+                  className="px-2 py-2 text-center font-semibold text-white/70 border-b border-white/5"
+                  style={{ minWidth: 72 }}
+                >
+                  <span className="block truncate max-w-[80px] mx-auto">{col.term}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr
+                key={row.time}
+                className="border-t border-white/[0.04]"
+                style={{ background: i % 2 === 0 ? "#0f0c1a" : "#0D0B14" }}
+              >
+                <td className="px-3 py-1.5 font-mono text-white/30">{row.time}</td>
+                {columns.map((col) => {
+                  const { label, style } = cellInfo(row.positions[col.keywordId] ?? null)
+                  return (
+                    <td key={col.keywordId} className="px-1.5 py-1.5 text-center">
+                      <div
+                        className="mx-auto rounded font-bold rank-number py-1"
+                        style={{ minWidth: 52, ...style }}
+                      >
+                        {label}
+                      </div>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
