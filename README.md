@@ -26,8 +26,9 @@ Dark-mode SEO rank tracking platform. Track Google positions for keywords across
 
 Dashboard → **Live Board** button → select property → copy URL → open on any TV or screen.
 
-- Auto-rotates: Overview stats → Top Ranked → Rising → Dropping
-- Refreshes data every 30 seconds
+- Auto-rotates: Overview stats → Top Ranked → 7-Day Trend chart → Rising → Dropping
+- Trend slide cycles one keyword per board rotation, showing best/worst positions annotated
+- Refreshes data every 30 minutes (Next.js ISR + client router.refresh)
 - Fullscreen button built-in
 - No authentication required
 

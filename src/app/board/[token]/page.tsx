@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import { getBoardConfig, getBoardData } from "@/features/boards/queries"
 import { BoardClient } from "./board-client"
 
-export const revalidate = 30
+export const revalidate = 1800
 
 export default async function BoardPage({
   params,

@@ -255,9 +255,10 @@ A fullscreen, public TV dashboard — share a URL, open on any screen, auto-rota
 
 ### Slides (auto-advance every 8s)
 1. **Overview** — 4 hero stat cards: keywords tracked · avg position · % top 3 · % top 10
-2. **Top Ranked** — up to 10 keywords with position ≤ 10, large rank-number display
-3. **Rising** — biggest positive delta in last 7 days, green arrows
-4. **Dropping** — biggest negative delta (only shown if data exists), red arrows
+2. **Top Ranked** — up to 10 keywords with position ≤ 20, large rank-number display
+3. **7-Day Trend** — Recharts AreaChart showing best position per day for one keyword; cycles one keyword per full board rotation; best/worst day annotated; keyword counter shown (e.g. "3 / 12")
+4. **Rising** — biggest positive delta in last 7 days, green arrows
+5. **Dropping** — biggest negative delta (only shown if data exists), red arrows
 
 ### UI / Design
 - Full viewport, dark `#0D0B14` background with subtle animated violet gradient pulse
@@ -267,7 +268,7 @@ A fullscreen, public TV dashboard — share a URL, open on any screen, auto-rota
 - Slide indicator dots
 - `Powered by Merlin` watermark bottom-right
 - Large `Geist Mono` position numbers (hero data point)
-- Auto-refresh: `export const revalidate = 30` + client `router.refresh()` every 30s
+- Auto-refresh: `export const revalidate = 1800` + client `router.refresh()` every 30 min (cost-efficient)
 
 ### Board creation
 - Dashboard header → **Live Board** button (client component)
@@ -286,7 +287,7 @@ src/app/board/[token]/
   board-client.tsx    carousel, progress bar, clock, fullscreen, refresh
 ```
 
-**Done when:** shareable URL opens full-screen TV board with live rotating slides and auto-refresh.
+**Done when:** shareable URL opens full-screen TV board with live rotating slides, 7-day trend chart, and 30-min auto-refresh. ✅
 
 ---
 

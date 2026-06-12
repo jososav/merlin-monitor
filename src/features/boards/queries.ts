@@ -18,6 +18,12 @@ export interface BoardRankingRow {
   delta: number | null
 }
 
+export interface KeywordHistory {
+  keywordId: string
+  term: string
+  points: { date: string; position: number | null }[]
+}
+
 export interface BoardData {
   stats: {
     keywordCount: number
@@ -29,6 +35,8 @@ export interface BoardData {
   topRanked: BoardRankingRow[]
   rising: BoardRankingRow[]
   dropping: BoardRankingRow[]
+  /** Per-keyword 7-day history — best position per day across all locations */
+  keywordHistories: KeywordHistory[]
 }
 
 export async function getBoardConfig(token: string): Promise<BoardConfig | null> {
@@ -69,7 +77,32 @@ export async function getBoardData(propertyId: string): Promise<BoardData> {
     .where(and(eq(rankings.propertyId, propertyId), gte(rankings.date, sinceStr)))
     .orderBy(desc(rankings.date))
 
-  // Two most recent per (keyword, location)
+  // ── Build full 7-day history per keyword (best position per day) ──────────
+  // Must be done on ALL rows before the 2-row grouping below
+  const historyAccum = new Map<string, { term: string; days: Map<string, number | null> }>()
+  for (const row of rows) {
+    const kh = historyAccum.get(row.keywordId) ?? { term: row.term, days: new Map() }
+    const existing = kh.days.get(row.date)
+    if (
+      existing === undefined ||
+      (row.position !== null && (existing === null || row.position < existing))
+    ) {
+      kh.days.set(row.date, row.position)
+    }
+    historyAccum.set(row.keywordId, kh)
+  }
+
+  const keywordHistories: KeywordHistory[] = Array.from(historyAccum.entries()).map(
+    ([keywordId, { term, days }]) => ({
+      keywordId,
+      term,
+      points: Array.from(days.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, position]) => ({ date, position })),
+    })
+  )
+
+  // ── Two most recent per (keyword, location) for delta computation ─────────
   const grouped = new Map<string, typeof rows>()
   for (const row of rows) {
     const key = `${row.keywordId}:${row.locationId}`
@@ -121,5 +154,6 @@ export async function getBoardData(propertyId: string): Promise<BoardData> {
       .filter((r) => r.delta !== null && r.delta < 0)
       .sort((a, b) => a.delta! - b.delta!)
       .slice(0, 8),
+    keywordHistories,
   }
 }

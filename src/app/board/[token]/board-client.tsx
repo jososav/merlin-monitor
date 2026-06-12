@@ -1,10 +1,19 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowUp, ArrowDown, Maximize2, Minimize2, Wifi } from "lucide-react"
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts"
 import { cn } from "@/lib/utils"
-import type { BoardConfig, BoardData } from "@/features/boards/queries"
+import type { BoardConfig, BoardData, KeywordHistory } from "@/features/boards/queries"
 
 const SLIDE_DURATION = 8000
 
@@ -20,40 +29,67 @@ export function BoardClient({ config, data }: Props) {
   const [time, setTime] = useState("")
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [refreshPulse, setRefreshPulse] = useState(false)
+  const [rotationCount, setRotationCount] = useState(0)
+  const prevSlideRef = useRef(-1)
 
-  const slides = buildSlides(data)
+  // Deduplicated keywords for history cycling
+  const historyKeywords = [
+    ...new Map(data.keywordHistories.map((kh) => [kh.keywordId, kh])).values(),
+  ]
+  const activeHistory =
+    historyKeywords.length > 0
+      ? historyKeywords[rotationCount % historyKeywords.length]
+      : null
+
+  const slides = buildSlides(data, activeHistory, rotationCount, historyKeywords.length)
+
+  // Detect full rotation (slide wraps from last → 0) → advance keyword
+  useEffect(() => {
+    if (prevSlideRef.current === slides.length - 1 && slide === 0) {
+      setRotationCount((c) => c + 1)
+    }
+    prevSlideRef.current = slide
+  }, [slide, slides.length])
 
   // Clock
   useEffect(() => {
     function tick() {
-      setTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }))
+      setTime(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      )
     }
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [])
 
-  // Auto-advance slides
+  // Auto-advance + progress bar
   useEffect(() => {
     setProgress(0)
     const start = Date.now()
     const tick = setInterval(() => {
-      const elapsed = Date.now() - start
-      setProgress(Math.min((elapsed / SLIDE_DURATION) * 100, 100))
+      setProgress(Math.min(((Date.now() - start) / SLIDE_DURATION) * 100, 100))
     }, 80)
     const advance = setTimeout(() => {
       setSlide((s) => (s + 1) % slides.length)
     }, SLIDE_DURATION)
-    return () => { clearInterval(tick); clearTimeout(advance) }
+    return () => {
+      clearInterval(tick)
+      clearTimeout(advance)
+    }
   }, [slide, slides.length])
 
-  // Auto-refresh data from server every 30s
+  // Auto-refresh data every 30 min
   useEffect(() => {
     const id = setInterval(() => {
       setRefreshPulse(true)
       router.refresh()
       setTimeout(() => setRefreshPulse(false), 1000)
-    }, 30_000)
+    }, 30 * 60 * 1000)
     return () => clearInterval(id)
   }, [router])
 
@@ -79,11 +115,12 @@ export function BoardClient({ config, data }: Props) {
       className="relative min-h-screen flex flex-col overflow-hidden select-none"
       style={{ background: "#0D0B14" }}
     >
-      {/* Animated background */}
+      {/* Animated background glow */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          background: "radial-gradient(ellipse 80% 60% at 50% -10%, hsl(262 83% 58% / 0.08) 0%, transparent 70%)",
+          background:
+            "radial-gradient(ellipse 80% 60% at 50% -10%, hsl(262 83% 58% / 0.08) 0%, transparent 70%)",
           animation: "pulse-bg 8s ease-in-out infinite alternate",
         }}
       />
@@ -99,12 +136,11 @@ export function BoardClient({ config, data }: Props) {
             LIVE
           </span>
         </div>
-
         <div className="flex items-center gap-5">
           <Wifi
             size={14}
             className={cn(
-              "transition-colors",
+              "transition-colors duration-500",
               refreshPulse ? "text-emerald-400" : "text-white/20"
             )}
           />
@@ -138,7 +174,7 @@ export function BoardClient({ config, data }: Props) {
         ))}
       </div>
 
-      {/* Footer: dots + progress bar + watermark */}
+      {/* Footer */}
       <footer className="relative z-10 px-8 pb-6 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5">
@@ -175,10 +211,15 @@ export function BoardClient({ config, data }: Props) {
   )
 }
 
-// ─── Slide definitions ────────────────────────────────────────────────────────
+// ─── Slide registry ───────────────────────────────────────────────────────────
 
-function buildSlides(data: BoardData) {
-  const slides = [
+function buildSlides(
+  data: BoardData,
+  activeHistory: KeywordHistory | null,
+  rotationCount: number,
+  totalHistoryKeywords: number
+) {
+  return [
     {
       id: "overview",
       title: "Overview",
@@ -187,6 +228,21 @@ function buildSlides(data: BoardData) {
     ...(data.topRanked.length > 0
       ? [{ id: "top-ranked", title: "Top Ranked", content: <TopRankedSlide rows={data.topRanked} /> }]
       : []),
+    ...(activeHistory
+      ? [
+          {
+            id: `history-${rotationCount}`,
+            title: "7-Day Trend",
+            content: (
+              <HistorySlide
+                history={activeHistory}
+                keywordIndex={rotationCount % totalHistoryKeywords}
+                totalKeywords={totalHistoryKeywords}
+              />
+            ),
+          },
+        ]
+      : []),
     ...(data.rising.length > 0
       ? [{ id: "rising", title: "Rising ↑", content: <MoversSlide rows={data.rising} direction="up" /> }]
       : []),
@@ -194,19 +250,16 @@ function buildSlides(data: BoardData) {
       ? [{ id: "dropping", title: "Dropping ↓", content: <MoversSlide rows={data.dropping} direction="down" /> }]
       : []),
   ]
-  return slides
 }
+
+// ─── Slides ───────────────────────────────────────────────────────────────────
 
 function OverviewSlide({ data }: { data: BoardData }) {
   const { stats } = data
   return (
     <div className="flex-1 flex items-center justify-center">
       <div className="grid grid-cols-2 gap-6 w-full max-w-3xl">
-        <StatHero
-          label="Keywords Tracked"
-          value={String(stats.keywordCount)}
-          sub="active"
-        />
+        <StatHero label="Keywords Tracked" value={String(stats.keywordCount)} sub="active" />
         <StatHero
           label="Avg Position"
           value={stats.avgPosition != null ? `#${stats.avgPosition}` : "—"}
@@ -270,14 +323,11 @@ function StatHero({
 function TopRankedSlide({ rows }: { rows: BoardData["topRanked"] }) {
   return (
     <div className="flex-1 flex flex-col gap-3 max-w-3xl mx-auto w-full">
-      {rows.map((r, i) => (
+      {rows.map((r) => (
         <div
           key={`${r.keywordId}:${r.locationName}`}
           className="flex items-center gap-5 rounded-xl px-6 py-3.5 border border-white/5"
-          style={{
-            background: "hsl(258 30% 9% / 0.7)",
-            animationDelay: `${i * 60}ms`,
-          }}
+          style={{ background: "hsl(258 30% 9% / 0.7)" }}
         >
           <span
             className={cn(
@@ -306,6 +356,122 @@ function TopRankedSlide({ rows }: { rows: BoardData["topRanked"] }) {
           )}
         </div>
       ))}
+    </div>
+  )
+}
+
+function HistorySlide({
+  history,
+  keywordIndex,
+  totalKeywords,
+}: {
+  history: KeywordHistory
+  keywordIndex: number
+  totalKeywords: number
+}) {
+  const nonNull = history.points.filter((p) => p.position !== null)
+  const best = nonNull.length
+    ? nonNull.reduce((a, b) => (a.position! < b.position! ? a : b))
+    : null
+  const worst = nonNull.length
+    ? nonNull.reduce((a, b) => (a.position! > b.position! ? a : b))
+    : null
+  const maxPos = nonNull.length ? Math.max(...nonNull.map((p) => p.position!)) + 3 : 20
+
+  const data = history.points.map((p) => ({
+    date: formatDate(p.date),
+    position: p.position,
+  }))
+
+  return (
+    <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full gap-5">
+      {/* Keyword header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-white truncate">{history.term}</h2>
+          <p className="text-white/35 text-sm mt-1">Position over the last 7 days</p>
+        </div>
+        <span className="rank-number text-xs text-white/20 mt-1 shrink-0 ml-4">
+          {keywordIndex + 1} / {totalKeywords}
+        </span>
+      </div>
+
+      {/* Chart */}
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#7C3AED" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="#7C3AED" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: "#94A3B8", fontSize: 13 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              reversed
+              domain={[maxPos, 0]}
+              tick={{ fill: "#94A3B8", fontSize: 13 }}
+              tickCount={6}
+              axisLine={false}
+              tickLine={false}
+              width={36}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#13101F",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 8,
+                fontSize: 13,
+              }}
+              labelStyle={{ color: "#94A3B8" }}
+              formatter={(value) => [
+                value == null ? "Not ranked" : `#${value}`,
+                "Position",
+              ]}
+            />
+            <Area
+              type="monotone"
+              dataKey="position"
+              stroke="#7C3AED"
+              strokeWidth={3}
+              fill="url(#areaGradient)"
+              dot={{ fill: "#7C3AED", r: 5, strokeWidth: 0 }}
+              activeDot={{ fill: "#7C3AED", r: 7, strokeWidth: 0 }}
+              connectNulls={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Best / Worst callouts */}
+      {nonNull.length > 0 && (
+        <div className="flex gap-8 pb-1">
+          {best && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/30 uppercase tracking-wider">Best</span>
+              <span className="rank-number font-bold text-xl text-emerald-400">
+                #{best.position}
+              </span>
+              <span className="text-xs text-white/25">{formatDate(best.date)}</span>
+            </div>
+          )}
+          {worst && worst.date !== best?.date && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/30 uppercase tracking-wider">Worst</span>
+              <span className="rank-number font-bold text-xl text-rose-400">
+                #{worst.position}
+              </span>
+              <span className="text-xs text-white/25">{formatDate(worst.date)}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -353,4 +519,11 @@ function MoversSlide({
       ))}
     </div>
   )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr + "T00:00:00")
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
